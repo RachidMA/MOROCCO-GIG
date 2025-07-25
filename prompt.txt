@@ -1,0 +1,801 @@
+ENGINEERING PROMPT: Laravel + Flutter Gig Marketplace for Morocco
+
+PROJECT OVERVIEW
+================
+Build a mobile-first job marketplace connecting gig workers with job posters in Morocco. The platform emphasizes security, cultural localization, and admin-controlled quality assurance.
+
+Core Value Proposition: Secure gig matching with verified contact sharing only after mutual confirmation.
+
+TECHNICAL ARCHITECTURE
+======================
+
+Backend Stack (Laravel 10+)
+---------------------------
+Core Framework: Laravel 10.x
+Authentication: Laravel Sanctum (Bearer tokens)
+Queue System: Laravel Queues + Redis
+File Handling: Laravel Media Library
+Authorization: Spatie Laravel Permission
+Localization: Laravel built-in (Arabic RTL + French)
+Database: PostgreSQL (primary) / MySQL (fallback)
+Admin Panel: Filament 3.x
+
+Mobile Frontend (Flutter)
+-------------------------
+Framework: Flutter 3.x (Dart 3+)
+State Management: Provider/Riverpod
+HTTP Client: Dio
+Routing: GoRouter
+Storage: SharedPreferences
+Media: ImagePicker
+Localization: Flutter Intl (Arabic RTL support)
+
+Infrastructure
+--------------
+Caching/Jobs: Redis
+File Storage: Laravel local/S3-compatible
+Deployment: Laravel Forge + DigitalOcean
+Environment: Docker-ready configuration
+
+DATABASE DESIGN
+===============
+
+Core Tables
+-----------
+-- Users table (unified for all roles)
+users: id, name, phone, role[seeker|poster|admin], location, bio, 
+       id_verified[boolean], language[ar|fr], rating[decimal], 
+       created_at, updated_at, suspended_at
+
+-- Gigs table
+gigs: id, poster_id, title, description, location, category, 
+      budget[decimal], scheduled_time, status[active|paused|completed], 
+      created_at, updated_at
+
+-- Applications table (linking seekers to gigs)
+applications: id, gig_id, seeker_id, status[pending|confirmed|rejected], 
+              applied_at, confirmed_at
+
+-- Reviews table (bidirectional rating system)
+reviews: id, from_user_id, to_user_id, gig_id, rating[1-5], 
+         comment, created_at
+
+-- Reports table (moderation system)
+reports: id, reporter_id, reported_user_id, gig_id, reason, 
+         status[pending|resolved|dismissed], admin_notes, created_at
+
+Indexes & Constraints
+--------------------
+- Index on gigs(location, category, status)
+- Index on applications(gig_id, status)
+- Foreign key constraints with cascading deletes
+- Unique constraint on users(phone)
+
+AUTHENTICATION & SECURITY
+=========================
+
+Phone-Based Authentication Flow
+-------------------------------
+1. POST /api/auth/send-otp - Send SMS code to phone
+2. POST /api/auth/verify-otp - Verify code, return Sanctum token
+3. GET /api/auth/user - Get authenticated user details
+4. POST /api/auth/logout - Revoke current token
+
+Security Rules
+--------------
+- Rate limiting: 5 OTP requests per phone per hour
+- Token expiration: 30 days for mobile, 1 day for web
+- Phone number validation: Morocco format (+212)
+- No contact sharing until gig confirmation
+- Admin-only access to ID verification data
+
+CORE FEATURE WORKFLOWS
+======================
+
+1. Gig Application Process
+-------------------------
+Seeker Journey:
+Browse gigs → View details → Apply → Wait for confirmation → Receive contact
+
+Poster Journey:
+Post gig → Review applicants → Select seeker → Gig starts → Rate seeker
+
+2. Gig Posting Workflow
+----------------------
+Required Fields: title, description, category, location, budget, duration
+Optional Fields: photo, specific requirements
+Validation: Arabic/French text support, budget min/max limits
+
+3. ID Verification System
+------------------------
+User uploads ID photo → Admin reviews → Status updated → User notified
+States: unverified, pending, verified, rejected
+
+API ENDPOINTS SPECIFICATION
+===========================
+
+Authentication
+--------------
+POST /api/auth/send-otp - Body: {phone}
+POST /api/auth/verify-otp - Body: {phone, code}
+POST /api/auth/logout
+
+User Management
+---------------
+GET /api/user - Get current user
+PUT /api/user - Update profile
+POST /api/user/avatar - Upload profile photo
+POST /api/user/verify-id - Upload ID document
+
+Gigs
+----
+GET /api/gigs - List gigs (with filters)
+POST /api/gigs - Create new gig
+GET /api/gigs/{id} - Gig details
+PUT /api/gigs/{id} - Update gig (poster only)
+DELETE /api/gigs/{id} - Delete gig (poster/admin)
+
+Applications
+------------
+POST /api/gigs/{id}/apply - Apply to gig
+GET /api/gigs/{id}/applicants - List applicants (poster only)
+POST /api/applications/{id}/confirm - Confirm applicant
+POST /api/applications/{id}/reject - Reject applicant
+
+Contact & Reviews
+-----------------
+GET /api/contact/{gig_id} - Get poster contact (confirmed seekers only)
+POST /api/reviews - Submit review
+GET /api/reviews/{user_id} - Get user reviews
+
+Moderation
+----------
+POST /api/reports - Report user/gig
+GET /api/notifications - User notifications
+
+FLUTTER APP STRUCTURE
+=====================
+
+Screen Hierarchy
+----------------
+1. SplashScreen (language selection)
+2. AuthScreen (phone + OTP)
+3. HomeScreen (role-based dashboard)
+4. GigListScreen (seeker view)
+5. GigDetailScreen
+6. PostGigScreen (poster only)
+7. ApplicationsScreen (poster - manage applicants)
+8. ProfileScreen (edit profile, view rating)
+9. IDVerificationScreen
+10. ReviewsScreen
+11. ReportScreen
+12. NotificationsScreen (future)
+
+Key Flutter Packages
+--------------------
+dependencies:
+  flutter_localizations: ^0.1.0
+  dio: ^5.0.0
+  provider: ^6.0.0
+  go_router: ^12.0.0
+  shared_preferences: ^2.0.0
+  image_picker: ^1.0.0
+  cached_network_image: ^3.0.0
+  flutter_rating_bar: ^4.0.0
+
+ADMIN PANEL (Filament)
+=====================
+
+Dashboard Widgets
+-----------------
+- Daily new users/gigs
+- Pending ID verifications
+- Open reports count
+- Platform statistics
+
+Resource Management
+------------------
+- UserResource: View, verify IDs, suspend users
+- GigResource: Monitor, edit, delete gigs
+- ReportResource: Handle user reports
+- ReviewResource: Monitor review quality
+
+LOCALIZATION REQUIREMENTS
+=========================
+
+Arabic-First Design
+-------------------
+- RTL layout support in Flutter
+- Arabic as default language
+- French as secondary option
+- Cultural considerations for gig categories
+- Morocco-specific location data
+
+Text Requirements
+-----------------
+- All user-facing text translatable
+- Database support for Arabic text
+- Proper Arabic number formatting
+- Date/time in Arabic format
+
+DEPLOYMENT & SCALING
+====================
+
+Environment Setup
+-----------------
+Development: Laravel Sail + Flutter dev tools
+Staging: DigitalOcean droplet + Redis
+Production: Laravel Forge + load balancer
+Mobile: Android Play Store + iOS App Store
+
+Performance Considerations
+-------------------------
+- Database indexing for search queries
+- Redis caching for frequent data
+- Image optimization pipeline
+- API response pagination
+- Background job processing
+
+FUTURE ROADMAP
+==============
+
+Phase 2 Features
+----------------
+- In-app messaging system
+- Payment integration (CMI, InwiPay)
+- Advanced search with AI matching
+- Company accounts for businesses
+- Work history badges
+
+Phase 3 Features
+----------------
+- Video calls for interviews
+- Skill certification system
+- Multi-city expansion
+- API for third-party integrations
+
+SUCCESS METRICS
+===============
+- User registration rate
+- Gig completion rate
+- Average response time
+- User satisfaction scores
+- Platform safety incidents
+
+DELIVERABLES
+============
+1. Laravel API with full CRUD operations
+2. Filament admin panel with moderation tools
+3. Flutter mobile app (Android + iOS ready)
+4. Database migrations and seeders
+5. API documentation
+6. Deployment guide
+7. User manual (Arabic/French)
+
+TASK LIST: Gig Platform Full Feature Development
+
+1. BACKEND (LARAVEL)
+- [ ] Build Laravel API with CRUD for gigs, users, applications, reviews, reports
+- [ ] Implement authentication via phone (OTP)
+- [ ] Add middleware for role-based access
+- [ ] Integrate ID verification upload system
+- [ ] Configure Redis for job queues and caching
+- [ ] Setup localization in API responses (Arabic/French)
+- [ ] Add support for Arabic datetime and number formatting
+- [ ] Apply database indexing for search-heavy columns
+- [ ] Add pagination to API responses
+- [ ] Create seeders and factories for test data
+
+2. ADMIN PANEL (FILAMENT)
+- [ ] Create UserResource (moderate, suspend, verify)
+- [ ] Create GigResource (monitor, edit, delete)
+- [ ] Create ReportResource (handle user reports)
+- [ ] Create ReviewResource (monitor review quality)
+- [ ] Create admin dashboard for stats (gig count, reports, flagged users)
+
+3. FLUTTER APP
+- [ ] Implement RTL layout for Arabic
+- [ ] Add language selector at splash/login
+- [ ] Build login flow with OTP
+- [ ] Display gig list (filtered by category/location)
+- [ ] Implement gig acceptance & confirmation workflow
+- [ ] Add gig creation form (poster role)
+- [ ] Add profile screen with ID upload
+- [ ] Display reviews and ratings
+- [ ] Integrate localization (AR/FR) for all screens
+- [ ] Implement proper date/time/number formatting
+
+4. DEPLOYMENT
+- [ ] Set up Laravel Sail for local development
+- [ ] Deploy staging to DigitalOcean droplet
+- [ ] Configure Laravel Forge for production
+- [ ] Add Redis and queue worker setup
+- [ ] Optimize image upload and delivery
+- [ ] Publish mobile apps to Android/iOS stores
+- [ ] Write deployment and scaling guide
+
+5. DOCUMENTATION & SUPPORT
+- [ ] Generate API documentation (Postman + OpenAPI)
+- [ ] Create user manual in Arabic and French
+- [ ] Define success metrics (engagement, completion rate, safety)
+
+6. FUTURE ROADMAP (Optional)
+- [ ] Design chat/messaging system
+- [ ] Plan payment gateway integration
+- [ ] Map AI job matching logic
+- [ ] Company dashboard for enterprise users
+- [ ] Define skill certification badge system
+
+DEVELOPMENT RULES & GUIDELINES
+Laravel + Flutter Gig Marketplace
+
+PROJECT EXECUTION RULES
+========================
+
+1. DEVELOPMENT APPROACH
+-----------------------
+DO:
+✅ Start with Laravel API first, then Flutter app
+✅ Build authentication system before any other features
+✅ Create database migrations with proper relationships
+✅ Implement basic CRUD before advanced features
+✅ Test API endpoints with Postman/Insomnia before Flutter integration
+✅ Use Git with meaningful commit messages
+✅ Create separate branches for features
+
+DON'T:
+❌ Skip database design validation
+❌ Build frontend without working API endpoints
+❌ Ignore error handling and validation
+❌ Mix languages in the same file (Arabic + French)
+❌ Hardcode values instead of using config files
+
+2. CODE STRUCTURE REQUIREMENTS
+------------------------------
+
+Laravel Backend Rules
+--------------------
+File Structure (MANDATORY):
+app/
+├── Http/Controllers/Api/        // API controllers only
+├── Models/                      // Eloquent models
+├── Services/                    // Business logic
+├── Requests/                    // Form request validation
+├── Resources/                   // API resource transformations
+├── Jobs/                        // Queue jobs
+└── Notifications/               // User notifications
+
+Controller Example Pattern:
+class GigController extends Controller
+{
+    public function index(Request $request)
+    {
+        $gigs = Gig::query()
+            ->when($request->category, fn($q) => $q->where('category', $request->category))
+            ->when($request->location, fn($q) => $q->where('location', $request->location))
+            ->with(['poster:id,name,rating', 'applications_count'])
+            ->paginate(15);
+            
+        return GigResource::collection($gigs);
+    }
+}
+
+Flutter App Rules
+----------------
+Folder Structure (MANDATORY):
+lib/
+├── main.dart
+├── app/                        // App configuration & routing
+├── core/                       // Constants, themes, utils
+├── data/                       // API services, models
+├── presentation/               // Screens, widgets
+│   ├── screens/
+│   ├── widgets/
+│   └── providers/              // State management
+└── l10n/                       // Localization files
+
+Service Class Pattern:
+class ApiService {
+  final Dio _dio;
+  
+  Future<List<Gig>> getGigs({
+    String? category,
+    String? location,
+  }) async {
+    final response = await _dio.get('/api/gigs', queryParameters: {
+      if (category != null) 'category': category,
+      if (location != null) 'location': location,
+    });
+    
+    return (response.data['data'] as List)
+        .map((json) => Gig.fromJson(json))
+        .toList();
+  }
+}
+
+SECURITY IMPLEMENTATION RULES
+=============================
+
+1. AUTHENTICATION (MANDATORY)
+-----------------------------
+Laravel: Always use Sanctum middleware
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/user', [AuthController::class, 'user']);
+    Route::apiResource('gigs', GigController::class);
+});
+
+Rate Limiting (REQUIRED):
+Route::middleware(['throttle:auth'])->group(function () {
+    Route::post('/auth/send-otp', [AuthController::class, 'sendOtp']);
+});
+
+Flutter: Always store token securely
+class AuthService {
+  static const String _tokenKey = 'auth_token';
+  
+  Future<void> saveToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_tokenKey, token);
+  }
+  
+  Future<String?> getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_tokenKey);
+  }
+}
+
+2. DATA VALIDATION (MANDATORY)
+------------------------------
+Laravel: Use Form Requests for validation
+class CreateGigRequest extends FormRequest
+{
+    public function rules(): array
+    {
+        return [
+            'title' => 'required|string|max:255',
+            'description' => 'required|string|max:1000',
+            'category' => 'required|in:delivery,cleaning,handyman,tutoring',
+            'budget' => 'required|numeric|min:50|max:5000',
+            'location' => 'required|string|max:255',
+        ];
+    }
+    
+    public function messages(): array
+    {
+        return [
+            'title.required' => __('validation.title_required'),
+            'budget.min' => __('validation.budget_minimum'),
+        ];
+    }
+}
+
+3. CONTACT SHARING PROTECTION (CRITICAL)
+----------------------------------------
+Only confirmed seekers can access poster contact:
+class ContactController extends Controller
+{
+    public function getContact(Request $request, $gigId)
+    {
+        $application = Application::where([
+            'gig_id' => $gigId,
+            'seeker_id' => $request->user()->id,
+            'status' => 'confirmed'
+        ])->first();
+        
+        if (!$application) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+        
+        $poster = $application->gig->poster;
+        return response()->json(['phone' => $poster->phone]);
+    }
+}
+
+LOCALIZATION RULES
+==================
+
+1. ARABIC RTL SUPPORT (MANDATORY)
+---------------------------------
+Flutter: Proper RTL configuration
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      localizationsDelegates: [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: [
+        Locale('ar', 'MA'), // Arabic Morocco
+        Locale('fr', 'MA'), // French Morocco
+      ],
+      builder: (context, child) {
+        return Directionality(
+          textDirection: Localizations.localeOf(context).languageCode == 'ar'
+              ? TextDirection.rtl
+              : TextDirection.ltr,
+          child: child!,
+        );
+      },
+    );
+  }
+}
+
+2. DATABASE TEXT HANDLING
+-------------------------
+Laravel: UTF8MB4 for Arabic support
+Migration example:
+Schema::create('gigs', function (Blueprint $table) {
+    $table->id();
+    $table->string('title')->collation('utf8mb4_unicode_ci');
+    $table->text('description')->collation('utf8mb4_unicode_ci');
+    // ... other fields
+});
+
+UI/UX RULES
+===========
+
+1. MOBILE-FIRST DESIGN (MANDATORY)
+----------------------------------
+Flutter: Responsive design patterns
+class ResponsiveWidget extends StatelessWidget {
+  final Widget mobile;
+  final Widget? tablet;
+  
+  static bool isMobile(BuildContext context) =>
+      MediaQuery.of(context).size.width < 600;
+      
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 600) {
+          return mobile;
+        } else {
+          return tablet ?? mobile;
+        }
+      },
+    );
+  }
+}
+
+2. CULTURAL CONSIDERATIONS
+-------------------------
+Color scheme for Morocco market:
+class AppColors {
+  static const primary = Color(0xFFD32F2F);      // Morocco red
+  static const secondary = Color(0xFF388E3C);     // Morocco green  
+  static const background = Color(0xFFF5F5F5);
+  static const text = Color(0xFF212121);
+  static const textArabic = Color(0xFF1B5E20);    // Darker for Arabic text
+}
+
+TECHNICAL IMPLEMENTATION RULES
+==============================
+
+1. ERROR HANDLING (MANDATORY)
+-----------------------------
+Laravel: Consistent API responses
+class ApiResponse
+{
+    public static function success($data = null, $message = null, $code = 200)
+    {
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+            'message' => $message,
+        ], $code);
+    }
+    
+    public static function error($message, $code = 400, $errors = null)
+    {
+        return response()->json([
+            'success' => false,
+            'message' => $message,
+            'errors' => $errors,
+        ], $code);
+    }
+}
+
+Flutter: Exception handling
+class ApiException implements Exception {
+  final String message;
+  final int statusCode;
+  
+  ApiException(this.message, this.statusCode);
+  
+  @override
+  String toString() => 'ApiException: $message (Status: $statusCode)';
+}
+
+Usage in services:
+try {
+  final response = await _dio.get('/api/gigs');
+  return GigResponse.fromJson(response.data);
+} on DioException catch (e) {
+  if (e.response?.statusCode == 401) {
+    throw ApiException('Authentication required', 401);
+  }
+  throw ApiException('Network error', 500);
+}
+
+2. PERFORMANCE RULES
+-------------------
+Laravel: Eager loading to prevent N+1 queries
+class GigController extends Controller
+{
+    public function index()
+    {
+        return Gig::with([
+            'poster:id,name,rating',
+            'applications' => function($query) {
+                $query->where('status', 'pending')->count();
+            }
+        ])->paginate(15);
+    }
+}
+
+Flutter: Image caching and optimization
+CachedNetworkImage(
+  imageUrl: gig.imageUrl,
+  placeholder: (context, url) => Shimmer.fromColors(
+    baseColor: Colors.grey[300]!,
+    highlightColor: Colors.grey[100]!,
+    child: Container(height: 200, color: Colors.white),
+  ),
+  errorWidget: (context, url, error) => Icon(Icons.error),
+  fit: BoxFit.cover,
+)
+
+TESTING REQUIREMENTS
+====================
+
+1. API TESTING (MANDATORY)
+--------------------------
+Laravel: Feature tests for critical flows
+class GigApplicationTest extends TestCase
+{
+    public function test_seeker_can_apply_to_gig()
+    {
+        $seeker = User::factory()->create(['role' => 'seeker']);
+        $gig = Gig::factory()->create();
+        
+        $response = $this->actingAs($seeker)
+            ->postJson("/api/gigs/{$gig->id}/apply");
+            
+        $response->assertStatus(201);
+        $this->assertDatabaseHas('applications', [
+            'gig_id' => $gig->id,
+            'seeker_id' => $seeker->id,
+            'status' => 'pending'
+        ]);
+    }
+}
+
+2. FLUTTER TESTING
+------------------
+Widget tests for critical screens:
+testWidgets('Login form validates phone number', (WidgetTester tester) async {
+  await tester.pumpWidget(MyApp());
+  
+  // Find phone input field
+  final phoneField = find.byKey(Key('phone_field'));
+  
+  // Enter invalid phone
+  await tester.enterText(phoneField, '123');
+  await tester.tap(find.byKey(Key('submit_button')));
+  await tester.pump();
+  
+  // Expect validation error
+  expect(find.text('Please enter a valid phone number'), findsOneWidget);
+});
+
+DEPLOYMENT RULES
+================
+
+1. ENVIRONMENT CONFIGURATION
+----------------------------
+Laravel: Environment variables (REQUIRED)
+APP_NAME="Gig Marketplace"
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://your-domain.com
+
+DB_CONNECTION=postgresql
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_DATABASE=gig_marketplace
+DB_USERNAME=your_username
+DB_PASSWORD=your_password
+
+QUEUE_CONNECTION=redis
+REDIS_HOST=127.0.0.1
+REDIS_PASSWORD=null
+REDIS_PORT=6379
+
+2. SECURITY CHECKLIST (BEFORE DEPLOYMENT)
+-----------------------------------------
+✅ HTTPS enforced
+✅ Database passwords are strong
+✅ API rate limiting configured
+✅ CORS properly configured
+✅ Laravel telescope disabled in production
+✅ Debug mode disabled
+✅ File upload limits set
+✅ Admin panel access restricted
+✅ Backup strategy implemented
+✅ Monitoring tools configured
+
+CODE QUALITY RULES
+==================
+
+1. NAMING CONVENTIONS
+--------------------
+Laravel naming standards:
+class GigController          // PascalCase for classes
+public function createGig()  // camelCase for methods
+$userProfile                 // camelCase for variables
+'user_profiles'              // snake_case for database tables
+
+Flutter/Dart naming standards:
+class GigService            // PascalCase for classes
+void fetchGigs()           // camelCase for methods
+String userName            // camelCase for variables
+const String apiBaseUrl    // camelCase for constants
+
+2. DOCUMENTATION REQUIREMENTS
+-----------------------------
+/**
+ * Apply for a gig as a seeker
+ * 
+ * @param int $gigId The ID of the gig to apply for
+ * @return JsonResponse Success message or error
+ * 
+ * @throws \Exception When user is not a seeker
+ * @throws \Exception When already applied to this gig
+ */
+public function applyToGig(int $gigId): JsonResponse
+
+CRITICAL SUCCESS FACTORS
+========================
+
+1. MUST-HAVE FEATURES (NON-NEGOTIABLE)
+-------------------------------------
+[ ] Phone-based authentication working
+[ ] Gig posting and browsing functional
+[ ] Application system with confirmation flow
+[ ] Contact sharing only after confirmation
+[ ] Admin panel for moderation
+[ ] Arabic RTL support throughout
+[ ] Basic error handling and validation
+
+2. LAUNCH READINESS CHECKLIST
+-----------------------------
+[ ] All API endpoints tested and documented
+[ ] Flutter app builds successfully for Android/iOS
+[ ] Database is properly seeded with test data
+[ ] Admin panel accessible and functional
+[ ] Arabic translations complete
+[ ] Security measures implemented and tested
+[ ] Performance tested with 100+ concurrent users
+
+3. POST-LAUNCH MONITORING
+------------------------
+[ ] API response times < 500ms
+[ ] User registration success rate > 95%
+[ ] Gig application completion rate > 80%
+[ ] Zero security incidents
+[ ] Admin response time to reports < 24h
+
+DEVELOPMENT WORKFLOW
+===================
+
+1. Phase 1: Laravel API + Database (Week 1-2)
+2. Phase 2: Admin Panel with Filament (Week 2)
+3. Phase 3: Flutter App Core Features (Week 3-4)
+4. Phase 4: Integration & Testing (Week 4)
+5. Phase 5: Localization & Polish (Week 5)
+6. Phase 6: Deployment & Launch (Week 6)
+
+Remember: Security first, mobile-first, Arabic-first!
